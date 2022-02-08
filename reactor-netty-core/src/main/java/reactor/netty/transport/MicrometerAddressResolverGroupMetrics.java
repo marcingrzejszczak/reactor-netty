@@ -22,10 +22,14 @@ import io.netty.resolver.AddressResolverGroup;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.Future;
 import reactor.netty.channel.MicrometerChannelMetricsRecorder;
+import reactor.netty.internal.util.MapUtils;
 import reactor.netty.observability.ReactorNettyHandlerContext;
 
 import java.net.SocketAddress;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 
 import static reactor.netty.Metrics.ADDRESS_RESOLVER;
@@ -40,6 +44,14 @@ import static reactor.netty.Metrics.formatSocketAddress;
  * @since 1.1.0
  */
 final class MicrometerAddressResolverGroupMetrics<T extends SocketAddress> extends AddressResolverGroupMetrics<T> {
+
+	static final ConcurrentMap<Integer, MicrometerAddressResolverGroupMetrics<?>> cache = new ConcurrentHashMap<>();
+
+	static MicrometerAddressResolverGroupMetrics<?> getOrCreate(
+			AddressResolverGroup<?> resolverGroup, MicrometerChannelMetricsRecorder recorder) {
+		return MapUtils.computeIfAbsent(cache, Objects.hash(resolverGroup, recorder),
+				key -> new MicrometerAddressResolverGroupMetrics<>(resolverGroup, recorder));
+	}
 
 	MicrometerAddressResolverGroupMetrics(AddressResolverGroup<T> resolverGroup, MicrometerChannelMetricsRecorder recorder) {
 		super(resolverGroup, recorder);
