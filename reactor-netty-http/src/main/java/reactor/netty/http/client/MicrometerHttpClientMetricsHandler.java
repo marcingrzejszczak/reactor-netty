@@ -19,7 +19,7 @@ import io.micrometer.api.instrument.Tags;
 import io.micrometer.api.instrument.observation.Observation;
 import io.micrometer.api.instrument.transport.http.HttpClientRequest;
 import io.micrometer.api.instrument.transport.http.HttpClientResponse;
-import io.micrometer.api.instrument.transport.http.context.HttpClientHandlerContext;
+import io.micrometer.api.instrument.transport.http.context.HttpClientContext;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import reactor.netty.observability.ReactorNettyHandlerContext;
@@ -176,7 +176,7 @@ final class MicrometerHttpClientMetricsHandler extends AbstractHttpClientMetrics
 		}
 	}
 
-	static final class ReadHandlerContext extends HttpClientHandlerContext implements ReactorNettyHandlerContext {
+	static final class ReadHandlerContext extends HttpClientContext implements ReactorNettyHandlerContext {
 		static final String CONTEXTUAL_NAME = "request data sent";
 		static final String TYPE = "client";
 
@@ -220,7 +220,7 @@ final class MicrometerHttpClientMetricsHandler extends AbstractHttpClientMetrics
 		}
 
 		@Override
-		public HttpClientHandlerContext setResponse(HttpClientResponse response) {
+		public HttpClientContext setResponse(HttpClientResponse response) {
 			put(HttpClientResponse.class, response);
 			return super.setResponse(response);
 		}

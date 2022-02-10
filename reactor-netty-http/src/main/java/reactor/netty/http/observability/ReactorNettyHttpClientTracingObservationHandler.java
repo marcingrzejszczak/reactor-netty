@@ -18,7 +18,7 @@ package reactor.netty.http.observability;
 import io.micrometer.api.instrument.observation.Observation;
 import io.micrometer.api.instrument.transport.http.HttpClientRequest;
 import io.micrometer.api.instrument.transport.http.HttpClientResponse;
-import io.micrometer.api.instrument.transport.http.context.HttpClientHandlerContext;
+import io.micrometer.api.instrument.transport.http.context.HttpClientContext;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.handler.HttpClientTracingObservationHandler;
@@ -46,7 +46,7 @@ public final class ReactorNettyHttpClientTracingObservationHandler extends HttpC
 	}
 
 	@Override
-	public void tagSpan(HttpClientHandlerContext context, Span span) {
+	public void tagSpan(HttpClientContext context, Span span) {
 		ReactorNettyObservabilityUtils.tagSpan(context, span);
 	}
 
