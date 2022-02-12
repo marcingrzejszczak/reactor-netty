@@ -77,6 +77,16 @@ enum TlsHandshakeSpans implements DocumentedSpan {
 			public String getKey() {
 				return "reactor.netty.protocol";
 			}
+		},
+
+		/**
+		 * Remote address.
+		 */
+		REMOTE_ADDRESS {
+			@Override
+			public String getKey() {
+				return "remote.address";
+			}
 		}
 	}
 }
