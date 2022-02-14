@@ -41,6 +41,7 @@ import reactor.netty.DisposableServer;
 import reactor.netty.http.Http11SslContextSpec;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
+import reactor.netty.observability.ReactorNettyObservabilityUtils;
 import reactor.netty.observability.ReactorNettyTracingObservationHandler;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -122,9 +123,10 @@ class ObservabilitySmokeTest extends SampleTestRunner {
 					      .post()
 					      .uri("/post")
 					      .send(ByteBufMono.fromString(Mono.just(content)))
-					      .responseContent()
-					      .aggregate()
-					      .asString()
+					      .responseSingle((res, bytebuf) -> Mono.deferContextual(contextView -> {
+					          System.out.println("OBSERVATION not null " + ReactorNettyObservabilityUtils.currentObservation());
+					          return bytebuf.asString();
+					      }))
 					      .block();
 
 			assertThat(response).isEqualTo(content);

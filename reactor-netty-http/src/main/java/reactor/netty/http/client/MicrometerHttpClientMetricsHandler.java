@@ -20,9 +20,12 @@ import io.micrometer.api.instrument.observation.Observation;
 import io.micrometer.api.instrument.transport.http.HttpClientRequest;
 import io.micrometer.api.instrument.transport.http.HttpClientResponse;
 import io.micrometer.api.instrument.transport.http.context.HttpClientContext;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufHolder;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.LastHttpContent;
 import reactor.netty.observability.ReactorNettyHandlerContext;
 import reactor.util.annotation.Nullable;
 
@@ -53,6 +56,37 @@ final class MicrometerHttpClientMetricsHandler extends AbstractHttpClientMetrics
 			@Nullable Function<String, String> uriTagValue) {
 		super(uriTagValue);
 		this.recorder = recorder;
+	}
+
+	@Override
+	public void channelRead(ChannelHandlerContext ctx, Object msg) {
+		if (msg instanceof HttpResponse) {
+			status = ((HttpResponse) msg).status().codeAsText().toString();
+
+			startRead((HttpResponse) msg, ctx.channel().remoteAddress());
+		}
+
+		if (msg instanceof ByteBufHolder) {
+			dataReceived += ((ByteBufHolder) msg).content().readableBytes();
+		}
+		else if (msg instanceof ByteBuf) {
+			dataReceived += ((ByteBuf) msg).readableBytes();
+		}
+
+		if (msg instanceof LastHttpContent) {
+			recordRead(ctx.channel().remoteAddress());
+			reset();
+		}
+
+		Observation parentObservation = (Observation) ctx.channel().attr(OBSERVATION_ATTR).get();
+		if (parentObservation != null) {
+			try (Observation.Scope scope = parentObservation.openScope()) {
+				ctx.fireChannelRead(msg);
+			}
+		}
+		else {
+			ctx.fireChannelRead(msg);
+		}
 	}
 
 	@Override
