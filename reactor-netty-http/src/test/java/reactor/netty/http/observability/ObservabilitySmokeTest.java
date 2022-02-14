@@ -17,17 +17,16 @@ package reactor.netty.http.observability;
 
 import java.nio.charset.Charset;
 import java.security.cert.CertificateException;
-import java.time.Duration;
 import java.util.Deque;
 import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
-import io.micrometer.api.instrument.MeterRegistry;
 import io.micrometer.api.instrument.Metrics;
 import io.micrometer.api.instrument.observation.ObservationHandler;
 import io.micrometer.api.instrument.simple.SimpleMeterRegistry;
-import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.Span;
 import io.micrometer.tracing.test.SampleTestRunner;
 import io.micrometer.tracing.test.reporter.BuildingBlocks;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
@@ -44,6 +43,7 @@ import reactor.netty.http.server.HttpServer;
 import reactor.netty.observability.ReactorNettyObservabilityUtils;
 import reactor.netty.observability.ReactorNettyTracingObservationHandler;
 
+import static io.micrometer.tracing.test.simple.SpansAssert.then;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SuppressWarnings("rawtypes")
@@ -90,55 +90,63 @@ class ObservabilitySmokeTest extends SampleTestRunner {
 //	}
 
 	@Override
-	public BiConsumer<Tracer, MeterRegistry> yourCode() {
+	public SampleTestRunnerConsumer yourCode() {
 		byte[] bytes = new byte[1024 * 8];
 		Random rndm = new Random();
 		rndm.nextBytes(bytes);
 
-		return (tracer, meterRegistry) -> {
+		return (bb, meterRegistry) -> {
 			Http11SslContextSpec serverCtxHttp11 = Http11SslContextSpec.forServer(ssc.certificate(), ssc.privateKey());
 			Http11SslContextSpec clientCtxHttp11 =
 					Http11SslContextSpec.forClient()
-					                    .configure(builder -> builder.trustManager(InsecureTrustManagerFactory.INSTANCE));
+							.configure(builder -> builder.trustManager(InsecureTrustManagerFactory.INSTANCE));
 
 			HttpClient client =
 					HttpClient.create()
-					          .wiretap(true)
-					          .metrics(true, Function.identity())
-					          .secure(spec -> spec.sslContext(clientCtxHttp11));
+							.wiretap(true)
+							.metrics(true, Function.identity())
+							.secure(spec -> spec.sslContext(clientCtxHttp11));
 
 			// Make a test to localhost
 			DisposableServer server =
 					HttpServer.create()
-					          .wiretap(true)
-					          .metrics(true, Function.identity())
-					          .secure(spec -> spec.sslContext(serverCtxHttp11))
-					          .route(r -> r.post("/post", (req, res) -> res.send(req.receive().retain())))
-					          .bindNow();
+							.wiretap(true)
+							.metrics(true, Function.identity())
+							.secure(spec -> spec.sslContext(serverCtxHttp11))
+							.route(r -> r.post("/post", (req, res) -> res.send(req.receive().retain())))
+							.bindNow();
 
 			String content = new String(bytes, Charset.defaultCharset());
 			String response =
 					client.port(server.port())
-					      .host("localhost")
-					      .post()
-					      .uri("/post")
-					      .send(ByteBufMono.fromString(Mono.just(content)))
-					      .responseSingle((res, bytebuf) -> Mono.deferContextual(contextView -> {
-					          System.out.println("OBSERVATION not null " + ReactorNettyObservabilityUtils.currentObservation());
-					          return bytebuf.asString();
-					      }))
-					      .block();
+							.host("localhost")
+							.post()
+							.uri("/post")
+							.send(ByteBufMono.fromString(Mono.just(content)))
+							.responseSingle((res, bytebuf) -> Mono.deferContextual(contextView -> {
+								System.out.println("OBSERVATION not null " + ReactorNettyObservabilityUtils.currentObservation());
+								return bytebuf.asString();
+							}))
+							.block();
 
 			assertThat(response).isEqualTo(content);
 
 			client.secure()
-			      .post()
-			      .uri("https://httpbin.org/post")
-			      .send(ByteBufMono.fromString(Mono.just(content)))
-			      .responseContent()
-			      .aggregate()
-			      .asString()
-			      .block();
+					.post()
+					.uri("https://httpbin.org/post")
+					.send(ByteBufMono.fromString(Mono.just(content)))
+					.responseContent()
+					.aggregate()
+					.asString()
+					.block();
+
+			Span current = bb.getTracer().currentSpan();
+
+			then(bb.getFinishedSpans().stream().filter(f -> f.getTraceId().equals(current.context().traceId()))
+					.collect(Collectors.toList()))
+					.hasASpanWithName("connect")
+					.hasASpanWithName("tls handshake")
+					.hasASpanWithName("POST");
 		};
 	}
 }
