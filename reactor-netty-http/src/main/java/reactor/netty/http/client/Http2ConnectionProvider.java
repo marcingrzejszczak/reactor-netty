@@ -96,6 +96,7 @@ final class Http2ConnectionProvider extends PooledConnectionProvider<Connection>
 	protected CoreSubscriber<PooledRef<Connection>> createDisposableAcquire(
 			TransportConfig config,
 			ConnectionObserver connectionObserver,
+			Context observationContext,
 			long pendingAcquireTimeout,
 			InstrumentedPool<Connection> pool,
 			MonoSink<Connection> sink) {

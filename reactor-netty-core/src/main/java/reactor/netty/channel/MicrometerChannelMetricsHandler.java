@@ -31,6 +31,7 @@ import static reactor.netty.Metrics.ERROR;
 //import static reactor.netty.Metrics.REGISTRY;
 import static reactor.netty.Metrics.SUCCESS;
 import static reactor.netty.Metrics.formatSocketAddress;
+import static reactor.netty.ReactorNetty.OBSERVATION_ATTR;
 
 /**
  * {@link ChannelHandler} for collecting metrics on protocol level.
@@ -96,6 +97,7 @@ public class MicrometerChannelMetricsHandler extends AbstractChannelMetricsHandl
 		}
 
 		@Override
+		@SuppressWarnings("try")
 		public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress,
 				SocketAddress localAddress, ChannelPromise promise) throws Exception {
 			// TODO
@@ -110,7 +112,16 @@ public class MicrometerChannelMetricsHandler extends AbstractChannelMetricsHandl
 			// Cannot cache the Timer anymore - need to test the performance
 			put(SocketAddress.class, remoteAddress);
 			this.remoteAddress = formatSocketAddress(remoteAddress);
-			Observation observation = Observation.start(recorder.name() + CONNECT_TIME, this, REGISTRY);
+			Observation parentObservation = (Observation) ctx.channel().attr(OBSERVATION_ATTR).get();
+			Observation observation = Observation.createNotStarted(recorder.name() + CONNECT_TIME, this, REGISTRY);
+			if (parentObservation != null) {
+				try (Observation.Scope scope = parentObservation.openScope()) {
+					observation.start();
+				}
+			}
+			else {
+				observation.start();
+			}
 			ctx.connect(remoteAddress, localAddress, promise)
 			   .addListener(future -> {
 			       ctx.pipeline().remove(this);

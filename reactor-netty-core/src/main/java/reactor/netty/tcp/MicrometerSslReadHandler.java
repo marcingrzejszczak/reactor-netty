@@ -30,6 +30,7 @@ import static reactor.netty.Metrics.ERROR;
 import static reactor.netty.Metrics.SUCCESS;
 import static reactor.netty.Metrics.TLS_HANDSHAKE_TIME;
 import static reactor.netty.Metrics.formatSocketAddress;
+import static reactor.netty.ReactorNetty.OBSERVATION_ATTR;
 
 /**
  * @author Marcin Grzejszczak
@@ -63,8 +64,18 @@ final class MicrometerSslReadHandler extends Observation.Context implements Reac
 	}
 
 	@Override
+	@SuppressWarnings("try")
 	public void channelActive(ChannelHandlerContext ctx) {
-		observation = Observation.start(recorder.name() + TLS_HANDSHAKE_TIME, this, REGISTRY);
+		Observation parentObservation = (Observation) ctx.channel().attr(OBSERVATION_ATTR).get();
+		observation = Observation.createNotStarted(recorder.name() + TLS_HANDSHAKE_TIME, this, REGISTRY);
+		if (parentObservation != null) {
+			try (Observation.Scope scope = parentObservation.openScope()) {
+				observation.start();
+			}
+		}
+		else {
+			observation.start();
+		}
 		ctx.read(); //consume handshake
 	}
 

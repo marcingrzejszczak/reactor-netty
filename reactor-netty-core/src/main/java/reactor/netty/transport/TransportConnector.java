@@ -34,6 +34,8 @@ import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
+import reactor.netty.Metrics;
+import reactor.netty.observability.ReactorNettyObservabilityUtils;
 import reactor.util.Logger;
 import reactor.util.Loggers;
 import reactor.util.annotation.Nullable;
@@ -50,6 +52,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static reactor.netty.ReactorNetty.OBSERVATION_ATTR;
 import static reactor.netty.ReactorNetty.format;
 
 /**
@@ -79,7 +82,14 @@ public final class TransportConnector {
 		Objects.requireNonNull(bindAddress, "bindAddress");
 		Objects.requireNonNull(channelInitializer, "channelInitializer");
 
-		return doInitAndRegister(config, channelInitializer, isDomainSocket, config.eventLoopGroup().next())
+		Object currentObservation = null;
+		if (Metrics.isInstrumentationAvailable()) {
+			// TODO: Read from reactor context - if not there, read from thread local
+			// TODO: Context Propagation API should do this for us ( from reactive / or from thread local)
+			currentObservation = ReactorNettyObservabilityUtils.currentObservation();
+		}
+
+		return doInitAndRegister(config, channelInitializer, isDomainSocket, config.eventLoopGroup().next(), currentObservation)
 				.flatMap(channel -> {
 					MonoChannelPromise promise = new MonoChannelPromise(channel);
 					// "FutureReturnValueIgnored" this is deliberate
@@ -98,8 +108,14 @@ public final class TransportConnector {
 	 * @return a {@link Mono} of {@link Channel}
 	 */
 	public static Mono<Channel> connect(TransportConfig config, SocketAddress remoteAddress,
-	                                    AddressResolverGroup<?> resolverGroup, ChannelInitializer<Channel> channelInitializer) {
-		return connect(config, remoteAddress, resolverGroup, channelInitializer, config.eventLoopGroup().next());
+			AddressResolverGroup<?> resolverGroup, ChannelInitializer<Channel> channelInitializer) {
+		Object currentObservation = null;
+		if (Metrics.isInstrumentationAvailable()) {
+			// TODO: Read from reactor context - if not there, read from thread local
+			// TODO: Context Propagation API should do this for us ( from reactive / or from thread local)
+			currentObservation = ReactorNettyObservabilityUtils.currentObservation();
+		}
+		return connect(config, remoteAddress, resolverGroup, channelInitializer, config.eventLoopGroup().next(), currentObservation);
 	}
 
 	/**
@@ -110,23 +126,25 @@ public final class TransportConnector {
 	 * @param resolverGroup the resolver which will resolve the address of the unresolved named address
 	 * @param channelInitializer the {@link ChannelInitializer} that will be used for initializing the channel pipeline
 	 * @param eventLoop the {@link EventLoop} to use for handling the channel.
+	 * @param observation the observation
 	 * @return a {@link Mono} of {@link Channel}
 	 */
 	public static Mono<Channel> connect(TransportConfig config, SocketAddress remoteAddress,
-			AddressResolverGroup<?> resolverGroup, ChannelInitializer<Channel> channelInitializer, EventLoop eventLoop) {
+			AddressResolverGroup<?> resolverGroup, ChannelInitializer<Channel> channelInitializer,
+			EventLoop eventLoop, @Nullable Object observation) {
 		Objects.requireNonNull(config, "config");
 		Objects.requireNonNull(remoteAddress, "remoteAddress");
 		Objects.requireNonNull(resolverGroup, "resolverGroup");
 		Objects.requireNonNull(channelInitializer, "channelInitializer");
 
 		boolean isDomainAddress = remoteAddress instanceof DomainSocketAddress;
-		return doInitAndRegister(config, channelInitializer, isDomainAddress, eventLoop)
+		return doInitAndRegister(config, channelInitializer, isDomainAddress, eventLoop, observation)
 				.flatMap(channel -> doResolveAndConnect(channel, config, remoteAddress, resolverGroup)
 						.onErrorResume(RetryConnectException.class,
 								t -> {
 									AtomicInteger index = new AtomicInteger(1);
 									return Mono.defer(() ->
-											doInitAndRegister(config, channelInitializer, isDomainAddress, eventLoop)
+											doInitAndRegister(config, channelInitializer, isDomainAddress, eventLoop, observation)
 													.flatMap(ch -> {
 														MonoChannelPromise mono = new MonoChannelPromise(ch);
 														doConnect(t.addresses, config.bindAddress(), mono, index.get());
@@ -229,12 +247,16 @@ public final class TransportConnector {
 			TransportConfig config,
 			ChannelInitializer<Channel> channelInitializer,
 			boolean isDomainSocket,
-			EventLoop eventLoop) {
+			EventLoop eventLoop,
+			@Nullable Object observation) {
 		ChannelFactory<? extends Channel> channelFactory = config.connectionFactory(config.eventLoopGroup(), isDomainSocket);
 
 		Channel channel = null;
 		try {
 			channel = channelFactory.newChannel();
+			if (observation != null) {
+				channel.attr(OBSERVATION_ATTR).compareAndSet(null, observation);
+			}
 			if (channelInitializer instanceof ServerTransport.AcceptorInitializer) {
 				((ServerTransport.AcceptorInitializer) channelInitializer).acceptor.enableAutoReadTask(channel);
 			}

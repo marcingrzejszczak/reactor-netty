@@ -54,6 +54,7 @@ import reactor.util.annotation.Nullable;
 import reactor.util.concurrent.Queues;
 import reactor.util.context.Context;
 
+import static reactor.netty.ReactorNetty.OBSERVATION_ATTR;
 import static reactor.netty.ReactorNetty.format;
 
 /**
@@ -77,10 +78,11 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 	protected CoreSubscriber<PooledRef<PooledConnection>> createDisposableAcquire(
 			TransportConfig config,
 			ConnectionObserver connectionObserver,
+			Context observationContext,
 			long pendingAcquireTimeout,
 			InstrumentedPool<PooledConnection> pool,
 			MonoSink<Connection> sink) {
-		return new DisposableAcquire(connectionObserver, config.channelOperationsProvider(),
+		return new DisposableAcquire(connectionObserver, config.channelOperationsProvider(), observationContext,
 				pendingAcquireTimeout, pool, sink);
 	}
 
@@ -102,6 +104,7 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 		final Disposable.Composite cancellations;
 		final ConnectionObserver obs;
 		final ChannelOperations.OnSetup opsFactory;
+		final Context observationContext;
 		final long pendingAcquireTimeout;
 		final InstrumentedPool<PooledConnection> pool;
 		final boolean retried;
@@ -113,12 +116,14 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 		DisposableAcquire(
 				ConnectionObserver obs,
 				ChannelOperations.OnSetup opsFactory,
+				Context observationContext,
 				long pendingAcquireTimeout,
 				InstrumentedPool<PooledConnection> pool,
 				MonoSink<Connection> sink) {
 			this.cancellations = Disposables.composite();
 			this.obs = obs;
 			this.opsFactory = opsFactory;
+			this.observationContext = observationContext;
 			this.pendingAcquireTimeout = pendingAcquireTimeout;
 			this.pool = pool;
 			this.retried = false;
@@ -129,6 +134,7 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 			this.cancellations = parent.cancellations;
 			this.obs = parent.obs;
 			this.opsFactory = parent.opsFactory;
+			this.observationContext = parent.observationContext;
 			this.pendingAcquireTimeout = parent.pendingAcquireTimeout;
 			this.pool = parent.pool;
 			this.retried = true;
@@ -163,6 +169,10 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 			pooledConnection.pooledRef = pooledRef;
 
 			Channel c = pooledConnection.channel;
+			Object observation = observationContext.getOrDefault(OBSERVATION, null);
+			if (observation != null) {
+				c.attr(OBSERVATION_ATTR).compareAndSet(null, observation);
+			}
 
 			if (c.eventLoop().inEventLoop()) {
 				run();
@@ -408,6 +418,8 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 				ConnectionObserver obs = channel.attr(OWNER)
 				                                .getAndSet(ConnectionObserver.emptyListener());
 
+				channel.attr(OBSERVATION_ATTR).set(null);
+
 				if (pooledRef == null) {
 					return;
 				}
@@ -496,7 +508,8 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 			return Mono.create(sink -> {
 				PooledConnectionInitializer initializer = new PooledConnectionInitializer(sink);
 				EventLoop callerEventLoop = sink.currentContext().get(CONTEXT_CALLER_EVENTLOOP);
-				TransportConnector.connect(config, remoteAddress, resolver, initializer, callerEventLoop)
+				Object observation = sink.currentContext().getOrDefault(OBSERVATION, null);
+				TransportConnector.connect(config, remoteAddress, resolver, initializer, callerEventLoop, observation)
 				                  .subscribe(initializer);
 			});
 		}

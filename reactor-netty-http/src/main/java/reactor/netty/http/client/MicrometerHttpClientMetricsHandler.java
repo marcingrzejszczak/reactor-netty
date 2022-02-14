@@ -20,6 +20,7 @@ import io.micrometer.api.instrument.observation.Observation;
 import io.micrometer.api.instrument.transport.http.HttpClientRequest;
 import io.micrometer.api.instrument.transport.http.HttpClientResponse;
 import io.micrometer.api.instrument.transport.http.context.HttpClientContext;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import reactor.netty.observability.ReactorNettyHandlerContext;
@@ -33,6 +34,7 @@ import java.util.function.Function;
 //import static reactor.netty.Metrics.REGISTRY;
 import static reactor.netty.Metrics.RESPONSE_TIME;
 import static reactor.netty.Metrics.formatSocketAddress;
+import static reactor.netty.ReactorNetty.OBSERVATION_ATTR;
 
 /**
  * @author Marcin Grzejszczak
@@ -96,12 +98,22 @@ final class MicrometerHttpClientMetricsHandler extends AbstractHttpClientMetrics
 
 	// writing the request
 	@Override
-	protected void startWrite(HttpRequest msg, SocketAddress address) {
-		super.startWrite(msg, address);
+	@SuppressWarnings("try")
+	protected void startWrite(HttpRequest msg, SocketAddress address, ChannelHandlerContext ctx) {
+		super.startWrite(msg, address, ctx);
 
 		HttpClientRequest httpClientRequest = new ObservationHttpClientRequest(msg, method, path);
 		responseTimeHandlerContext = new ReadHandlerContext(httpClientRequest, address, recorder.protocol());
-		responseTimeObservation = Observation.start(recorder.name() + RESPONSE_TIME, responseTimeHandlerContext, REGISTRY);
+		Observation parentObservation = (Observation) ctx.channel().attr(OBSERVATION_ATTR).get();
+		responseTimeObservation = Observation.createNotStarted(recorder.name() + RESPONSE_TIME, responseTimeHandlerContext, REGISTRY);
+		if (parentObservation != null) {
+			try (Observation.Scope scope = parentObservation.openScope()) {
+				responseTimeObservation.start();
+			}
+		}
+		else {
+			responseTimeObservation.start();
+		}
 	}
 
 	static final class ObservationHttpClientRequest implements io.micrometer.api.instrument.transport.http.HttpClientRequest {

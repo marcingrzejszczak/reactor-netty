@@ -28,6 +28,7 @@ import reactor.netty.Connection;
 import reactor.netty.ConnectionObserver;
 import reactor.netty.Metrics;
 import reactor.netty.ReactorNetty;
+import reactor.netty.observability.ReactorNettyObservabilityUtils;
 import reactor.netty.transport.TransportConfig;
 import reactor.netty.internal.util.MapUtils;
 import reactor.pool.AllocationStrategy;
@@ -43,6 +44,7 @@ import reactor.pool.introspection.SamplingAllocationStrategy;
 import reactor.util.Logger;
 import reactor.util.Loggers;
 import reactor.util.annotation.Nullable;
+import reactor.util.context.Context;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -76,6 +78,8 @@ public abstract class PooledConnectionProvider<T extends Connection> implements 
 	 * Context key used to propagate the caller event loop in the connection pool subscription.
 	 */
 	final static String CONTEXT_CALLER_EVENTLOOP = "callereventloop";
+
+	static final String OBSERVATION = "Observation";
 
 	final PoolFactory<T> defaultPoolFactory;
 	final Map<SocketAddress, PoolFactory<T>> poolFactoryPerRemoteHost = new HashMap<>();
@@ -146,10 +150,23 @@ public abstract class PooledConnectionProvider<T extends Connection> implements 
 				return newPool;
 			});
 
+			Context currentObservationContext;
+			if (Metrics.isInstrumentationAvailable()) {
+				// TODO: Read from reactor context - if not there, read from thread local
+				// TODO: Context Propagation API should do this for us ( from reactive / or from thread local)
+				Object currentObservation = ReactorNettyObservabilityUtils.currentObservation();
+				currentObservationContext = currentObservation != null ?
+						Context.of(OBSERVATION, currentObservation) : Context.empty();
+			}
+			else {
+				currentObservationContext = Context.empty();
+			}
+
 			EventLoop eventLoop = config.loopResources().onClient(config.isPreferNative()).next();
 			pool.acquire(Duration.ofMillis(poolFactory.pendingAcquireTimeout))
-			    .contextWrite(ctx -> ctx.put(CONTEXT_CALLER_EVENTLOOP, eventLoop))
-			    .subscribe(createDisposableAcquire(config, connectionObserver,
+			    .contextWrite(ctx -> ctx.put(CONTEXT_CALLER_EVENTLOOP, eventLoop)
+			                            .putAll(currentObservationContext.readOnly()))
+			    .subscribe(createDisposableAcquire(config, connectionObserver, currentObservationContext,
 			            poolFactory.pendingAcquireTimeout, pool, sink));
 		});
 	}
@@ -230,6 +247,7 @@ public abstract class PooledConnectionProvider<T extends Connection> implements 
 	protected abstract CoreSubscriber<PooledRef<T>> createDisposableAcquire(
 			TransportConfig config,
 			ConnectionObserver connectionObserver,
+			Context observationContext,
 			long pendingAcquireTimeout,
 			InstrumentedPool<T> pool,
 			MonoSink<Connection> sink);

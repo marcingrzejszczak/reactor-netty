@@ -83,10 +83,10 @@ class ObservabilitySmokeTest extends SampleTestRunner {
 		};
 	}
 
-	@Override
-	public TracingSetup[] getTracingSetup() {
-		return new TracingSetup[] {TracingSetup.ZIPKIN_BRAVE};
-	}
+//	@Override
+//	public TracingSetup[] getTracingSetup() {
+//		return new TracingSetup[] {TracingSetup.ZIPKIN_BRAVE};
+//	}
 
 	@Override
 	public BiConsumer<Tracer, MeterRegistry> yourCode() {
@@ -125,7 +125,7 @@ class ObservabilitySmokeTest extends SampleTestRunner {
 					      .responseContent()
 					      .aggregate()
 					      .asString()
-					      .block(Duration.ofSeconds(5));
+					      .block();
 
 			assertThat(response).isEqualTo(content);
 
@@ -136,7 +136,7 @@ class ObservabilitySmokeTest extends SampleTestRunner {
 			      .responseContent()
 			      .aggregate()
 			      .asString()
-			      .block(Duration.ofSeconds(5));
+			      .block();
 		};
 	}
 }

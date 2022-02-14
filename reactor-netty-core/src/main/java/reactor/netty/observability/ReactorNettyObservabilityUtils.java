@@ -25,6 +25,8 @@ import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.List;
 
+import static io.micrometer.api.instrument.Metrics.globalRegistry;
+
 /**
  * Utility methods for observability.
  *
@@ -35,6 +37,10 @@ import java.util.List;
 public final class ReactorNettyObservabilityUtils {
 
 	private static final List<String> LEGACY_TAGS = Arrays.asList(Metrics.STATUS, Metrics.METHOD, Metrics.URI);
+
+	public static Object currentObservation() {
+		return globalRegistry.getCurrentObservation();
+	}
 
 	/**
 	 * Obtains the high cardinality tags from the context and sets them on the span.

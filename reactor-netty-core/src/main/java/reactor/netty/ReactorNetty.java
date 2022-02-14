@@ -983,6 +983,9 @@ public final class ReactorNetty {
 
 	static final AttributeKey<Connection> CONNECTION = AttributeKey.valueOf("$CONNECTION");
 
+	//TODO remove the public modifier
+	public static final AttributeKey<Object> OBSERVATION_ATTR = AttributeKey.valueOf("$OBSERVATION");
+
 	static final Consumer<? super FileChannel> fileCloser = fc -> {
 		try {
 			fc.close();
