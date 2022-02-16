@@ -15,6 +15,8 @@
  */
 package reactor.netty.tcp;
 
+import java.net.SocketAddress;
+
 import io.micrometer.api.instrument.Tags;
 import io.micrometer.api.instrument.observation.Observation;
 import io.netty.channel.ChannelHandlerContext;
@@ -22,15 +24,13 @@ import io.netty.channel.ChannelInboundHandler;
 import io.netty.handler.ssl.SslHandshakeCompletionEvent;
 import reactor.netty.channel.MicrometerChannelMetricsRecorder;
 import reactor.netty.observability.ReactorNettyHandlerContext;
-
-import java.net.SocketAddress;
+import reactor.netty.observability.contextpropagation.ContextContainer;
+import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 
 import static reactor.netty.Metrics.ERROR;
-//import static reactor.netty.Metrics.REGISTRY;
 import static reactor.netty.Metrics.SUCCESS;
 import static reactor.netty.Metrics.TLS_HANDSHAKE_TIME;
 import static reactor.netty.Metrics.formatSocketAddress;
-import static reactor.netty.ReactorNetty.OBSERVATION_ATTR;
 
 /**
  * @author Marcin Grzejszczak
@@ -66,16 +66,9 @@ final class MicrometerSslReadHandler extends Observation.Context implements Reac
 	@Override
 	@SuppressWarnings("try")
 	public void channelActive(ChannelHandlerContext ctx) {
-		Observation parentObservation = (Observation) ctx.channel().attr(OBSERVATION_ATTR).get();
+		ContextContainer container = ContainerUtils.restoreContainer(ctx.channel());
 		observation = Observation.createNotStarted(recorder.name() + TLS_HANDSHAKE_TIME, this, REGISTRY);
-		if (parentObservation != null) {
-			try (Observation.Scope scope = parentObservation.openScope()) {
-				observation.start();
-			}
-		}
-		else {
-			observation.start();
-		}
+		ContextContainer.tryScoped(container, () -> observation.start());
 		ctx.read(); //consume handshake
 	}
 
@@ -137,15 +130,15 @@ final class MicrometerSslReadHandler extends Observation.Context implements Reac
 	public Tags getHighCardinalityTags() {
 		// TODO cache
 		return Tags.of(TlsHandshakeObservations.TlsHandshakeTimeHighCardinalityTags.REACTOR_NETTY_STATUS.of(status),
-		               TlsHandshakeObservations.TlsHandshakeTimeHighCardinalityTags.REACTOR_NETTY_TYPE.of(type),
-		               TlsHandshakeObservations.TlsHandshakeTimeHighCardinalityTags.REACTOR_NETTY_PROTOCOL.of(recorder.protocol()));
+				TlsHandshakeObservations.TlsHandshakeTimeHighCardinalityTags.REACTOR_NETTY_TYPE.of(type),
+				TlsHandshakeObservations.TlsHandshakeTimeHighCardinalityTags.REACTOR_NETTY_PROTOCOL.of(recorder.protocol()));
 	}
 
 	@Override
 	public Tags getLowCardinalityTags() {
 		// TODO cache
 		return Tags.of(TlsHandshakeObservations.TlsHandshakeTimeLowCardinalityTags.REMOTE_ADDRESS.of(remoteAddress),
-		               TlsHandshakeObservations.TlsHandshakeTimeLowCardinalityTags.STATUS.of(status));
+				TlsHandshakeObservations.TlsHandshakeTimeLowCardinalityTags.STATUS.of(status));
 	}
 
 	@Override

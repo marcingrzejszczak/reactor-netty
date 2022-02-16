@@ -43,6 +43,8 @@ import reactor.netty.ConnectionObserver;
 import reactor.netty.FutureMono;
 import reactor.netty.NettyPipeline;
 import reactor.netty.channel.ChannelOperations;
+import reactor.netty.observability.contextpropagation.ContextContainer;
+import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 import reactor.netty.transport.TransportConfig;
 import reactor.netty.transport.TransportConnector;
 import reactor.pool.InstrumentedPool;
@@ -54,7 +56,6 @@ import reactor.util.annotation.Nullable;
 import reactor.util.concurrent.Queues;
 import reactor.util.context.Context;
 
-import static reactor.netty.ReactorNetty.OBSERVATION_ATTR;
 import static reactor.netty.ReactorNetty.format;
 
 /**
@@ -104,7 +105,7 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 		final Disposable.Composite cancellations;
 		final ConnectionObserver obs;
 		final ChannelOperations.OnSetup opsFactory;
-		final Context observationContext;
+		final Context contextPropagationContext;
 		final long pendingAcquireTimeout;
 		final InstrumentedPool<PooledConnection> pool;
 		final boolean retried;
@@ -116,14 +117,14 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 		DisposableAcquire(
 				ConnectionObserver obs,
 				ChannelOperations.OnSetup opsFactory,
-				Context observationContext,
+				Context contextPropagationContext,
 				long pendingAcquireTimeout,
 				InstrumentedPool<PooledConnection> pool,
 				MonoSink<Connection> sink) {
 			this.cancellations = Disposables.composite();
 			this.obs = obs;
 			this.opsFactory = opsFactory;
-			this.observationContext = observationContext;
+			this.contextPropagationContext = contextPropagationContext;
 			this.pendingAcquireTimeout = pendingAcquireTimeout;
 			this.pool = pool;
 			this.retried = false;
@@ -134,7 +135,7 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 			this.cancellations = parent.cancellations;
 			this.obs = parent.obs;
 			this.opsFactory = parent.opsFactory;
-			this.observationContext = parent.observationContext;
+			this.contextPropagationContext = parent.contextPropagationContext;
 			this.pendingAcquireTimeout = parent.pendingAcquireTimeout;
 			this.pool = parent.pool;
 			this.retried = true;
@@ -169,10 +170,8 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 			pooledConnection.pooledRef = pooledRef;
 
 			Channel c = pooledConnection.channel;
-			Object observation = observationContext.getOrDefault(OBSERVATION, null);
-			if (observation != null) {
-				c.attr(OBSERVATION_ATTR).compareAndSet(null, observation);
-			}
+			ContextContainer container = ContainerUtils.restoreContainer(contextPropagationContext);
+			ContainerUtils.saveContainer(c, container);
 
 			if (c.eventLoop().inEventLoop()) {
 				run();
@@ -181,6 +180,7 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 				c.eventLoop().execute(this);
 			}
 		}
+
 
 		@Override
 		public void onStateChange(Connection connection, State newState) {
@@ -220,17 +220,17 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 			// The connection might be closed after checking the eviction predicate
 			if (!c.isActive()) {
 				pooledRef.invalidate()
-				         .subscribe(null, null, () -> {
-				             if (log.isDebugEnabled()) {
-				                 logPoolState(c, pool, "Channel closed");
-				             }
-				         });
+						.subscribe(null, null, () -> {
+							if (log.isDebugEnabled()) {
+								logPoolState(c, pool, "Channel closed");
+							}
+						});
 				if (!retried) {
 					if (log.isDebugEnabled()) {
 						log.debug(format(c, "Immediately aborted pooled channel, re-acquiring new channel"));
 					}
 					pool.acquire(Duration.ofMillis(pendingAcquireTimeout))
-					    .subscribe(new DisposableAcquire(this));
+							.subscribe(new DisposableAcquire(this));
 				}
 				else {
 					sink.error(new IOException("Error while acquiring from " + pool));
@@ -240,7 +240,7 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 
 			// Set the owner only if the channel is active
 			ConnectionObserver current = c.attr(OWNER)
-			                              .getAndSet(this);
+					.getAndSet(this);
 
 			if (current instanceof PendingConnectionObserver) {
 				PendingConnectionObserver pending = (PendingConnectionObserver) current;
@@ -310,19 +310,19 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 				log.debug(format(channel, "Registering pool release on close event for channel"));
 			}
 			channel.closeFuture()
-			       .addListener(ff -> {
-			           // When the connection is released the owner is NOOP
-			           ConnectionObserver owner = channel.attr(OWNER).get();
-			           if (owner instanceof DisposableAcquire) {
-			               ((DisposableAcquire) owner).pooledRef
-			                       .invalidate()
-			                       .subscribe(null, null, () -> {
-			                           if (log.isDebugEnabled()) {
-			                               logPoolState(channel, pool, "Channel closed");
-			                           }
-			                       });
-			           }
-			       });
+					.addListener(ff -> {
+						// When the connection is released the owner is NOOP
+						ConnectionObserver owner = channel.attr(OWNER).get();
+						if (owner instanceof DisposableAcquire) {
+							((DisposableAcquire) owner).pooledRef
+									.invalidate()
+									.subscribe(null, null, () -> {
+										if (log.isDebugEnabled()) {
+											logPoolState(channel, pool, "Channel closed");
+										}
+									});
+						}
+					});
 		}
 	}
 
@@ -416,36 +416,35 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 				}
 
 				ConnectionObserver obs = channel.attr(OWNER)
-				                                .getAndSet(ConnectionObserver.emptyListener());
-
-				channel.attr(OBSERVATION_ATTR).set(null);
+						.getAndSet(ConnectionObserver.emptyListener());
+				ContainerUtils.resetContainer(channel);
 
 				if (pooledRef == null) {
 					return;
 				}
 
 				pooledRef.release()
-				         .subscribe(
-				                 null,
-				                 t -> {
-				                     if (log.isDebugEnabled()) {
-				                         logPoolState(pooledRef.poolable().channel, pool,
-				                                 "Failed cleaning the channel from pool", t);
-				                     }
-				                     // EmitResult is ignored as it is guaranteed that this call happens in an event loop
-				                     // and it is guarded by release(), so tryEmitEmpty() should happen just once
-				                     onTerminate.tryEmitEmpty();
-				                     obs.onStateChange(connection, State.RELEASED);
-				                 },
-				                 () -> {
-				                     if (log.isDebugEnabled()) {
-				                         logPoolState(pooledRef.poolable().channel, pool, "Channel cleaned");
-				                     }
-				                     // EmitResult is ignored as it is guaranteed that this call happens in an event loop
-				                     // and it is guarded by release(), so tryEmitEmpty() should happen just once
-				                     onTerminate.tryEmitEmpty();
-				                     obs.onStateChange(connection, State.RELEASED);
-				                 });
+						.subscribe(
+								null,
+								t -> {
+									if (log.isDebugEnabled()) {
+										logPoolState(pooledRef.poolable().channel, pool,
+												"Failed cleaning the channel from pool", t);
+									}
+									// EmitResult is ignored as it is guaranteed that this call happens in an event loop
+									// and it is guarded by release(), so tryEmitEmpty() should happen just once
+									onTerminate.tryEmitEmpty();
+									obs.onStateChange(connection, State.RELEASED);
+								},
+								() -> {
+									if (log.isDebugEnabled()) {
+										logPoolState(pooledRef.poolable().channel, pool, "Channel cleaned");
+									}
+									// EmitResult is ignored as it is guaranteed that this call happens in an event loop
+									// and it is guarded by release(), so tryEmitEmpty() should happen just once
+									onTerminate.tryEmitEmpty();
+									obs.onStateChange(connection, State.RELEASED);
+								});
 				return;
 			}
 
@@ -508,9 +507,9 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 			return Mono.create(sink -> {
 				PooledConnectionInitializer initializer = new PooledConnectionInitializer(sink);
 				EventLoop callerEventLoop = sink.currentContext().get(CONTEXT_CALLER_EVENTLOOP);
-				Object observation = sink.currentContext().getOrDefault(OBSERVATION, null);
-				TransportConnector.connect(config, remoteAddress, resolver, initializer, callerEventLoop, observation)
-				                  .subscribe(initializer);
+				ContextContainer container = ContainerUtils.restoreContainer(sink.currentContext());
+				TransportConnector.connect(config, remoteAddress, resolver, initializer, callerEventLoop, container)
+						.subscribe(initializer);
 			});
 		}
 

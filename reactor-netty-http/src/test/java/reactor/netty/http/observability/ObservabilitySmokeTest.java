@@ -24,6 +24,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import io.micrometer.api.instrument.Metrics;
+import io.micrometer.api.instrument.observation.Observation;
 import io.micrometer.api.instrument.observation.ObservationHandler;
 import io.micrometer.api.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.tracing.Span;
@@ -34,6 +35,7 @@ import io.netty.handler.ssl.util.SelfSignedCertificate;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.ByteBufMono;
 import reactor.netty.DisposableServer;
@@ -42,6 +44,9 @@ import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
 import reactor.netty.observability.ReactorNettyObservabilityUtils;
 import reactor.netty.observability.ReactorNettyTracingObservationHandler;
+import reactor.netty.observability.contextpropagation.ContextContainer;
+import reactor.netty.observability.contextpropagation.ReactorContextUtils;
+import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 
 import static io.micrometer.tracing.test.simple.SpansAssert.then;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -124,7 +129,17 @@ class ObservabilitySmokeTest extends SampleTestRunner {
 							.uri("/post")
 							.send(ByteBufMono.fromString(Mono.just(content)))
 							.responseSingle((res, bytebuf) -> Mono.deferContextual(contextView -> {
-								System.out.println("OBSERVATION not null " + ReactorNettyObservabilityUtils.currentObservation());
+								// Automatic instrumentation - retrieving from the context container
+								System.out.println("OBSERVATION not null " + ContextContainer.create().captureThreadLocalValues().get(Observation.class.getName()));
+
+								// Automatic instrumentation - retrieving from the context container
+								System.out.println("OBSERVATION not null " + Metrics.globalRegistry.getCurrentObservation());
+
+								// Manual
+								try (ContextContainer.Scope scope = ContainerUtils.restoreContainer(contextView).restoreThreadLocalValues()) {
+									System.out.println("OBSERVATION not null " + ContextContainer.create().captureThreadLocalValues().get(Observation.class.getName()));
+								}
+
 								return bytebuf.asString();
 							}))
 							.block();

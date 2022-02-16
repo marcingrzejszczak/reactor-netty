@@ -27,6 +27,8 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.LastHttpContent;
 import reactor.netty.observability.ReactorNettyHandlerContext;
+import reactor.netty.observability.contextpropagation.ContextContainer;
+import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 import reactor.util.annotation.Nullable;
 
 import java.net.SocketAddress;
@@ -78,15 +80,9 @@ final class MicrometerHttpClientMetricsHandler extends AbstractHttpClientMetrics
 			reset();
 		}
 
-		Observation parentObservation = (Observation) ctx.channel().attr(OBSERVATION_ATTR).get();
-		if (parentObservation != null) {
-			try (Observation.Scope scope = parentObservation.openScope()) {
-				ctx.fireChannelRead(msg);
-			}
-		}
-		else {
-			ctx.fireChannelRead(msg);
-		}
+		ContextContainer parent = ContainerUtils.restoreContainer(ctx.channel());
+		// TODO: Performance problems
+		ContextContainer.tryScoped(parent, () -> ctx.fireChannelRead(msg));
 	}
 
 	@Override
@@ -138,16 +134,9 @@ final class MicrometerHttpClientMetricsHandler extends AbstractHttpClientMetrics
 
 		HttpClientRequest httpClientRequest = new ObservationHttpClientRequest(msg, method, path);
 		responseTimeHandlerContext = new ReadHandlerContext(httpClientRequest, address, recorder.protocol());
-		Observation parentObservation = (Observation) ctx.channel().attr(OBSERVATION_ATTR).get();
+		ContextContainer parent = ContainerUtils.restoreContainer(ctx.channel());
 		responseTimeObservation = Observation.createNotStarted(recorder.name() + RESPONSE_TIME, responseTimeHandlerContext, REGISTRY);
-		if (parentObservation != null) {
-			try (Observation.Scope scope = parentObservation.openScope()) {
-				responseTimeObservation.start();
-			}
-		}
-		else {
-			responseTimeObservation.start();
-		}
+		ContextContainer.tryScoped(parent, () -> responseTimeObservation.start());
 	}
 
 	static final class ObservationHttpClientRequest implements io.micrometer.api.instrument.transport.http.HttpClientRequest {

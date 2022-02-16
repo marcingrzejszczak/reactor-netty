@@ -92,7 +92,7 @@ final class QuicClientConnect extends QuicClient {
 			}
 
 			DisposableConnect disposableConnect = new DisposableConnect(config, local, sink);
-			TransportConnector.bind(config, config.parentChannelInitializer(), local, false)
+			TransportConnector.bind(config, config.parentChannelInitializer(), local, false, sink)
 			                  .subscribe(disposableConnect);
 		});
 

@@ -28,7 +28,9 @@ import reactor.netty.Connection;
 import reactor.netty.ConnectionObserver;
 import reactor.netty.Metrics;
 import reactor.netty.ReactorNetty;
-import reactor.netty.observability.ReactorNettyObservabilityUtils;
+import reactor.netty.observability.contextpropagation.ContextContainer;
+import reactor.netty.observability.contextpropagation.ReactorContextUtils;
+import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 import reactor.netty.transport.TransportConfig;
 import reactor.netty.internal.util.MapUtils;
 import reactor.pool.AllocationStrategy;
@@ -149,19 +151,9 @@ public abstract class PooledConnectionProvider<T extends Connection> implements 
 				}
 				return newPool;
 			});
-
-			Context currentObservationContext;
-			if (Metrics.isInstrumentationAvailable()) {
-				// TODO: Read from reactor context - if not there, read from thread local
-				// TODO: Context Propagation API should do this for us ( from reactive / or from thread local)
-				Object currentObservation = ReactorNettyObservabilityUtils.currentObservation();
-				currentObservationContext = currentObservation != null ?
-						Context.of(OBSERVATION, currentObservation) : Context.empty();
-			}
-			else {
-				currentObservationContext = Context.empty();
-			}
-
+			ContextContainer container = ReactorContextUtils.create().captureThreadLocalValues();
+			// TODO: Check if sink.currentContext() or Context.empty()
+			Context currentObservationContext = ContainerUtils.saveContainer(sink.currentContext(), container);
 			EventLoop eventLoop = config.loopResources().onClient(config.isPreferNative()).next();
 			pool.acquire(Duration.ofMillis(poolFactory.pendingAcquireTimeout))
 			    .contextWrite(ctx -> ctx.put(CONTEXT_CALLER_EVENTLOOP, eventLoop)

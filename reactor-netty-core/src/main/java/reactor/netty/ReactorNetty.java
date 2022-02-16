@@ -985,6 +985,7 @@ public final class ReactorNetty {
 
 	//TODO remove the public modifier
 	public static final AttributeKey<Object> OBSERVATION_ATTR = AttributeKey.valueOf("$OBSERVATION");
+	public static final AttributeKey<Object> CONTEXT_PROPAGATION_ATTR = AttributeKey.valueOf("$CONTEXT_PROPAGATION");
 
 	static final Consumer<? super FileChannel> fileCloser = fc -> {
 		try {

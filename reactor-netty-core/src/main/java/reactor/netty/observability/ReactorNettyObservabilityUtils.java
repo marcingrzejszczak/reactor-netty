@@ -15,17 +15,13 @@
  */
 package reactor.netty.observability;
 
+import java.util.Arrays;
+import java.util.List;
+
 import io.micrometer.api.instrument.Tag;
 import io.micrometer.api.instrument.observation.Observation;
 import io.micrometer.tracing.Span;
 import reactor.netty.Metrics;
-
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.util.Arrays;
-import java.util.List;
-
-import static io.micrometer.api.instrument.Metrics.globalRegistry;
 
 /**
  * Utility methods for observability.
@@ -37,28 +33,6 @@ import static io.micrometer.api.instrument.Metrics.globalRegistry;
 public final class ReactorNettyObservabilityUtils {
 
 	private static final List<String> LEGACY_TAGS = Arrays.asList(Metrics.STATUS, Metrics.METHOD, Metrics.URI);
-
-	public static Object currentObservation() {
-		return globalRegistry.getCurrentObservation();
-	}
-
-	/**
-	 * Obtains the high cardinality tags from the context and sets them on the span.
-	 * Obtains the host and port information and sets it on the span.
-	 *
-	 * @param context the {@link Observation.Context}
-	 * @param span    the {@link Span}
-	 */
-	public static void tagClientSpan(Observation.Context context, Span span) {
-		SocketAddress address = context.get(SocketAddress.class);
-		if (address instanceof InetSocketAddress) {
-			InetSocketAddress inet = (InetSocketAddress) address;
-			span.remoteIpAndPort(inet.getHostString(), inet.getPort());
-		}
-		for (Tag tag : context.getHighCardinalityTags()) {
-			span.tag(tag.getKey(), tag.getValue());
-		}
-	}
 
 	/**
 	 * Obtains the all cardinality tags from the context except for the legacy ones and sets them on the span.
@@ -78,5 +52,6 @@ public final class ReactorNettyObservabilityUtils {
 		}
 	}
 
-	private ReactorNettyObservabilityUtils() {}
+	private ReactorNettyObservabilityUtils() {
+	}
 }

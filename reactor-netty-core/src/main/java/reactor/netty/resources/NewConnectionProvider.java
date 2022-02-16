@@ -70,7 +70,7 @@ final class NewConnectionProvider implements ConnectionProvider {
 			DisposableConnect disposableConnect = new DisposableConnect(sink, config.bindAddress());
 			if (remote != null && resolverGroup != null) {
 				ChannelInitializer<Channel> channelInitializer = config.channelInitializer(connectionObserver, remote, false);
-				TransportConnector.connect(config, remote, resolverGroup, channelInitializer)
+				TransportConnector.connect(config, remote, resolverGroup, channelInitializer, sink)
 				                  .subscribe(disposableConnect);
 			}
 			else {
@@ -84,7 +84,7 @@ final class NewConnectionProvider implements ConnectionProvider {
 					}
 				}
 				ChannelInitializer<Channel> channelInitializer = config.channelInitializer(connectionObserver, null, true);
-				TransportConnector.bind(config, channelInitializer, local, local instanceof DomainSocketAddress)
+				TransportConnector.bind(config, channelInitializer, local, local instanceof DomainSocketAddress, sink)
 				                  .subscribe(disposableConnect);
 			}
 		});

@@ -77,7 +77,7 @@ final class QuicServerBind extends QuicServer {
 			}
 
 			DisposableBind disposableBind = new DisposableBind(local, sink);
-			TransportConnector.bind(config, config.parentChannelInitializer(), local, false)
+			TransportConnector.bind(config, config.parentChannelInitializer(), local, false, sink)
 			                  .subscribe(disposableBind);
 		});
 

@@ -22,6 +22,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandler;
 import io.netty.channel.ChannelPromise;
 import reactor.netty.observability.ReactorNettyHandlerContext;
+import reactor.netty.observability.contextpropagation.ContextContainer;
+import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 import reactor.util.annotation.Nullable;
 
 import java.net.SocketAddress;
@@ -31,7 +33,6 @@ import static reactor.netty.Metrics.ERROR;
 //import static reactor.netty.Metrics.REGISTRY;
 import static reactor.netty.Metrics.SUCCESS;
 import static reactor.netty.Metrics.formatSocketAddress;
-import static reactor.netty.ReactorNetty.OBSERVATION_ATTR;
 
 /**
  * {@link ChannelHandler} for collecting metrics on protocol level.
@@ -112,16 +113,10 @@ public class MicrometerChannelMetricsHandler extends AbstractChannelMetricsHandl
 			// Cannot cache the Timer anymore - need to test the performance
 			put(SocketAddress.class, remoteAddress);
 			this.remoteAddress = formatSocketAddress(remoteAddress);
-			Observation parentObservation = (Observation) ctx.channel().attr(OBSERVATION_ATTR).get();
+			ContextContainer container = ContainerUtils.restoreContainer(ctx.channel());
 			Observation observation = Observation.createNotStarted(recorder.name() + CONNECT_TIME, this, REGISTRY);
-			if (parentObservation != null) {
-				try (Observation.Scope scope = parentObservation.openScope()) {
-					observation.start();
-				}
-			}
-			else {
-				observation.start();
-			}
+			// TODO: Bring back the if / else statement
+			ContextContainer.tryScoped(container, () -> observation.start());
 			ctx.connect(remoteAddress, localAddress, promise)
 			   .addListener(future -> {
 			       ctx.pipeline().remove(this);

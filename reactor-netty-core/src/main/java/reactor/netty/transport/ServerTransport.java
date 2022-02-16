@@ -108,7 +108,7 @@ public abstract class ServerTransport<T extends ServerTransport<T, CONF>,
 					new ChildObserver(config.defaultChildObserver().then(config.childObserver()));
 			Acceptor acceptor = new Acceptor(config.childEventLoopGroup(), config.channelInitializer(childObs, null, true),
 					config.childOptions, config.childAttrs, isDomainSocket);
-			TransportConnector.bind(config, new AcceptorInitializer(acceptor), local, isDomainSocket)
+			TransportConnector.bind(config, new AcceptorInitializer(acceptor), local, isDomainSocket, sink)
 			                  .subscribe(disposableServer);
 		});
 
