@@ -29,7 +29,6 @@ import reactor.netty.Connection;
 import reactor.netty.ConnectionObserver;
 import reactor.netty.Metrics;
 import reactor.netty.ReactorNetty;
-import reactor.netty.observability.contextpropagation.ReactorContextUtils;
 import reactor.netty.transport.TransportConfig;
 import reactor.netty.internal.util.MapUtils;
 import reactor.pool.AllocationStrategy;
@@ -150,7 +149,7 @@ public abstract class PooledConnectionProvider<T extends Connection> implements 
 				}
 				return newPool;
 			});
-			ContextContainer container = ReactorContextUtils.create().captureThreadLocalValues();
+			ContextContainer container = ContextContainer.create().captureThreadLocalValues();
 			// TODO: Check if sink.currentContext() or Context.empty()
 			Context currentObservationContext = container.saveContainer(sink.currentContext());
 			EventLoop eventLoop = config.loopResources().onClient(config.isPreferNative()).next();

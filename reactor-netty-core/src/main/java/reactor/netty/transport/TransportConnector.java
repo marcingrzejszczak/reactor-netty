@@ -36,7 +36,6 @@ import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
 import reactor.netty.Connection;
-import reactor.netty.observability.contextpropagation.ReactorContextUtils;
 import reactor.util.Logger;
 import reactor.util.Loggers;
 import reactor.util.annotation.Nullable;
@@ -82,8 +81,8 @@ public final class TransportConnector {
 		Objects.requireNonNull(config, "config");
 		Objects.requireNonNull(bindAddress, "bindAddress");
 		Objects.requireNonNull(channelInitializer, "channelInitializer");
-		ContextContainer container = ReactorContextUtils.create().captureThreadLocalValues();
-		ReactorContextUtils.captureReactorContext(sink.currentContext(), container);
+		ContextContainer container = ContextContainer.create().captureThreadLocalValues();
+		container.captureContext(sink.currentContext());
 		return doInitAndRegister(config, channelInitializer, isDomainSocket, config.eventLoopGroup().next(), container)
 				.flatMap(channel -> {
 					MonoChannelPromise promise = new MonoChannelPromise(channel);
@@ -105,8 +104,8 @@ public final class TransportConnector {
 	 */
 	public static Mono<Channel> connect(TransportConfig config, SocketAddress remoteAddress,
 			AddressResolverGroup<?> resolverGroup, ChannelInitializer<Channel> channelInitializer, MonoSink sink) {
-		ContextContainer container = ReactorContextUtils.create();
-		ReactorContextUtils.restoreReactorContext(sink.currentContext(), container);
+		ContextContainer container = ContextContainer.create();
+		container.captureContext(sink.currentContext());
 		return connect(config, remoteAddress, resolverGroup, channelInitializer, config.eventLoopGroup().next(), container);
 	}
 

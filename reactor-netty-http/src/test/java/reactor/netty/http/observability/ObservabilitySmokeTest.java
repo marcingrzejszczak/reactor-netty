@@ -45,7 +45,6 @@ import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
 import reactor.netty.observability.ReactorNettyObservabilityUtils;
 import reactor.netty.observability.ReactorNettyTracingObservationHandler;
-import reactor.netty.observability.contextpropagation.ReactorContextUtils;
 
 import static io.micrometer.tracing.test.simple.SpansAssert.then;
 import static org.assertj.core.api.Assertions.assertThat;

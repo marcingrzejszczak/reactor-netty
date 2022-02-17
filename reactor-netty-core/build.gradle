@@ -103,7 +103,7 @@ dependencies {
 	}
 
 	//Metrics
-	api "io.micrometer:context-propagation:${contextPropagationVersion}"
+	api "io.micrometer:context-propagation-api:${contextPropagationVersion}"
 	compileOnly "io.micrometer:micrometer-api:$micrometerVersion"
 	compileOnly "io.micrometer:micrometer-tracing-api:$micrometerTracingVersion"
 
