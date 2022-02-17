@@ -20,20 +20,16 @@ import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import io.micrometer.contextpropagation.ThreadLocalAccessor;
+
 /**
  * Loads {@link ThreadLocalAccessor} and {@link ReactorContextAccessor}.
  */
-public class AccessorLoader {
-
-	private static final ServiceLoader<ThreadLocalAccessor> threadLocalAccessors = ServiceLoader.load(ThreadLocalAccessor.class);
+final class ReactorAccessorLoader {
 
 	private static final ServiceLoader<ReactorContextAccessor> reactorAccessors = ServiceLoader.load(ReactorContextAccessor.class);
 
-	public static List<ThreadLocalAccessor> getThreadLocalAccessors() {
-		return StreamSupport.stream(threadLocalAccessors.spliterator(), false).collect(Collectors.toList());
-	}
-
-	public static List<ReactorContextAccessor> getReactorContextAccessor() {
+	static List<ReactorContextAccessor> getReactorContextAccessor() {
 		return StreamSupport.stream(reactorAccessors.spliterator(), false).collect(Collectors.toList());
 	}
 

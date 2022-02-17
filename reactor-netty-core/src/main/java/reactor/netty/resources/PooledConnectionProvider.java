@@ -15,6 +15,7 @@
  */
 package reactor.netty.resources;
 
+import io.micrometer.contextpropagation.ContextContainer;
 import io.netty.channel.Channel;
 import io.netty.channel.EventLoop;
 import io.netty.resolver.AddressResolverGroup;
@@ -28,9 +29,7 @@ import reactor.netty.Connection;
 import reactor.netty.ConnectionObserver;
 import reactor.netty.Metrics;
 import reactor.netty.ReactorNetty;
-import reactor.netty.observability.contextpropagation.ContextContainer;
 import reactor.netty.observability.contextpropagation.ReactorContextUtils;
-import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 import reactor.netty.transport.TransportConfig;
 import reactor.netty.internal.util.MapUtils;
 import reactor.pool.AllocationStrategy;
@@ -153,7 +152,7 @@ public abstract class PooledConnectionProvider<T extends Connection> implements 
 			});
 			ContextContainer container = ReactorContextUtils.create().captureThreadLocalValues();
 			// TODO: Check if sink.currentContext() or Context.empty()
-			Context currentObservationContext = ContainerUtils.saveContainer(sink.currentContext(), container);
+			Context currentObservationContext = container.saveContainer(sink.currentContext());
 			EventLoop eventLoop = config.loopResources().onClient(config.isPreferNative()).next();
 			pool.acquire(Duration.ofMillis(poolFactory.pendingAcquireTimeout))
 			    .contextWrite(ctx -> ctx.put(CONTEXT_CALLER_EVENTLOOP, eventLoop)

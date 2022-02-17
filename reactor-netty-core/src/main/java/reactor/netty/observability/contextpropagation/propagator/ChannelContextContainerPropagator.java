@@ -1,9 +1,10 @@
 package reactor.netty.observability.contextpropagation.propagator;
 
+import io.micrometer.contextpropagation.ContextContainer;
+import io.micrometer.contextpropagation.ContextContainerPropagator;
 import io.netty.channel.Channel;
 import io.netty.util.AttributeKey;
 import reactor.netty.ReactorNetty;
-import reactor.netty.observability.contextpropagation.ContextContainer;
 
 public class ChannelContextContainerPropagator implements ContextContainerPropagator<Channel, Channel> {
 
@@ -17,7 +18,11 @@ public class ChannelContextContainerPropagator implements ContextContainerPropag
 
 	@Override
 	public ContextContainer get(Channel ctx) {
-		return (ContextContainer) ctx.attr(key).get();
+		ContextContainer container = (ContextContainer) ctx.attr(key).get();
+		if (container != null) {
+			return container;
+		}
+		return ContextContainer.NOOP;
 	}
 
 	@Override
@@ -30,6 +35,7 @@ public class ChannelContextContainerPropagator implements ContextContainerPropag
 	public boolean supportsContextForSet(Object context) {
 		return context instanceof Channel;
 	}
+
 	@Override
 	public boolean supportsContextForGet(Object context) {
 		return supportsContextForSet(context);

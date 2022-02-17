@@ -17,13 +17,12 @@ package reactor.netty.channel;
 
 import io.micrometer.api.instrument.Tags;
 import io.micrometer.api.instrument.observation.Observation;
+import io.micrometer.contextpropagation.ContextContainer;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandler;
 import io.netty.channel.ChannelPromise;
 import reactor.netty.observability.ReactorNettyHandlerContext;
-import reactor.netty.observability.contextpropagation.ContextContainer;
-import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 import reactor.util.annotation.Nullable;
 
 import java.net.SocketAddress;
@@ -113,10 +112,21 @@ public class MicrometerChannelMetricsHandler extends AbstractChannelMetricsHandl
 			// Cannot cache the Timer anymore - need to test the performance
 			put(SocketAddress.class, remoteAddress);
 			this.remoteAddress = formatSocketAddress(remoteAddress);
-			ContextContainer container = ContainerUtils.restoreContainer(ctx.channel());
+			ContextContainer container = ContextContainer.restoreContainer(ctx.channel());
 			Observation observation = Observation.createNotStarted(recorder.name() + CONNECT_TIME, this, REGISTRY);
 			// TODO: Bring back the if / else statement
-			ContextContainer.tryScoped(container, () -> observation.start());
+			// TODO: Add a NOOP context container ??? == ContextContainer.NOOP
+			if (container != null) {
+				try (ContextContainer.Scope scope = container.restoreThreadLocalValues()) {
+					// Observation is in thread local and span is put to thread local (X)
+					observation.start();
+					// span Y in thread local that is a child of X
+				}
+				// there's nothing in thread local
+			}
+			else {
+				observation.start();
+			}
 			ctx.connect(remoteAddress, localAddress, promise)
 			   .addListener(future -> {
 			       ctx.pipeline().remove(this);

@@ -20,6 +20,7 @@ import io.micrometer.api.instrument.observation.Observation;
 import io.micrometer.api.instrument.transport.http.HttpClientRequest;
 import io.micrometer.api.instrument.transport.http.HttpClientResponse;
 import io.micrometer.api.instrument.transport.http.context.HttpClientContext;
+import io.micrometer.contextpropagation.ContextContainer;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufHolder;
 import io.netty.channel.ChannelHandlerContext;
@@ -27,8 +28,6 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.LastHttpContent;
 import reactor.netty.observability.ReactorNettyHandlerContext;
-import reactor.netty.observability.contextpropagation.ContextContainer;
-import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 import reactor.util.annotation.Nullable;
 
 import java.net.SocketAddress;
@@ -80,9 +79,9 @@ final class MicrometerHttpClientMetricsHandler extends AbstractHttpClientMetrics
 			reset();
 		}
 
-		ContextContainer parent = ContainerUtils.restoreContainer(ctx.channel());
+		ContextContainer parent = ContextContainer.restoreContainer(ctx.channel());
 		// TODO: Performance problems
-		ContextContainer.tryScoped(parent, () -> ctx.fireChannelRead(msg));
+		parent.tryScoped(() -> ctx.fireChannelRead(msg));
 	}
 
 	@Override
@@ -134,9 +133,9 @@ final class MicrometerHttpClientMetricsHandler extends AbstractHttpClientMetrics
 
 		HttpClientRequest httpClientRequest = new ObservationHttpClientRequest(msg, method, path);
 		responseTimeHandlerContext = new ReadHandlerContext(httpClientRequest, address, recorder.protocol());
-		ContextContainer parent = ContainerUtils.restoreContainer(ctx.channel());
+		ContextContainer parent = ContextContainer.restoreContainer(ctx.channel());
 		responseTimeObservation = Observation.createNotStarted(recorder.name() + RESPONSE_TIME, responseTimeHandlerContext, REGISTRY);
-		ContextContainer.tryScoped(parent, () -> responseTimeObservation.start());
+		parent.tryScoped(() -> responseTimeObservation.start());
 	}
 
 	static final class ObservationHttpClientRequest implements io.micrometer.api.instrument.transport.http.HttpClientRequest {

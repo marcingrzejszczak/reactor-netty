@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 
+import io.micrometer.contextpropagation.ContextContainer;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoop;
@@ -43,8 +44,6 @@ import reactor.netty.ConnectionObserver;
 import reactor.netty.FutureMono;
 import reactor.netty.NettyPipeline;
 import reactor.netty.channel.ChannelOperations;
-import reactor.netty.observability.contextpropagation.ContextContainer;
-import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 import reactor.netty.transport.TransportConfig;
 import reactor.netty.transport.TransportConnector;
 import reactor.pool.InstrumentedPool;
@@ -170,8 +169,8 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 			pooledConnection.pooledRef = pooledRef;
 
 			Channel c = pooledConnection.channel;
-			ContextContainer container = ContainerUtils.restoreContainer(contextPropagationContext);
-			ContainerUtils.saveContainer(c, container);
+			ContextContainer container = ContextContainer.restoreContainer(contextPropagationContext);
+			container.saveContainer(c);
 
 			if (c.eventLoop().inEventLoop()) {
 				run();
@@ -417,7 +416,7 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 
 				ConnectionObserver obs = channel.attr(OWNER)
 						.getAndSet(ConnectionObserver.emptyListener());
-				ContainerUtils.resetContainer(channel);
+				ContextContainer.resetContainer(channel);
 
 				if (pooledRef == null) {
 					return;
@@ -507,7 +506,7 @@ final class DefaultPooledConnectionProvider extends PooledConnectionProvider<Def
 			return Mono.create(sink -> {
 				PooledConnectionInitializer initializer = new PooledConnectionInitializer(sink);
 				EventLoop callerEventLoop = sink.currentContext().get(CONTEXT_CALLER_EVENTLOOP);
-				ContextContainer container = ContainerUtils.restoreContainer(sink.currentContext());
+				ContextContainer container = ContextContainer.restoreContainer(sink.currentContext());
 				TransportConnector.connect(config, remoteAddress, resolver, initializer, callerEventLoop, container)
 						.subscribe(initializer);
 			});

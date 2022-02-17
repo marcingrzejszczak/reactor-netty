@@ -15,6 +15,7 @@
  */
 package reactor.netty.transport;
 
+import io.micrometer.contextpropagation.ContextContainer;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFactory;
 import io.netty.channel.ChannelFuture;
@@ -35,9 +36,7 @@ import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
 import reactor.netty.Connection;
-import reactor.netty.observability.contextpropagation.ContextContainer;
 import reactor.netty.observability.contextpropagation.ReactorContextUtils;
-import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 import reactor.util.Logger;
 import reactor.util.Loggers;
 import reactor.util.annotation.Nullable;
@@ -124,7 +123,7 @@ public final class TransportConnector {
 	 */
 	public static Mono<Channel> connect(TransportConfig config, SocketAddress remoteAddress,
 			AddressResolverGroup<?> resolverGroup, ChannelInitializer<Channel> channelInitializer,
-			EventLoop eventLoop, @Nullable ContextContainer container) {
+			EventLoop eventLoop, ContextContainer container) {
 		Objects.requireNonNull(config, "config");
 		Objects.requireNonNull(remoteAddress, "remoteAddress");
 		Objects.requireNonNull(resolverGroup, "resolverGroup");
@@ -241,13 +240,13 @@ public final class TransportConnector {
 			ChannelInitializer<Channel> channelInitializer,
 			boolean isDomainSocket,
 			EventLoop eventLoop,
-			@Nullable ContextContainer contextContainer) {
+			ContextContainer contextContainer) {
 		ChannelFactory<? extends Channel> channelFactory = config.connectionFactory(config.eventLoopGroup(), isDomainSocket);
 
 		Channel channel = null;
 		try {
 			channel = channelFactory.newChannel();
-			ContainerUtils.saveContainer(channel, contextContainer);
+			contextContainer.saveContainer(channel);
 			if (channelInitializer instanceof ServerTransport.AcceptorInitializer) {
 				((ServerTransport.AcceptorInitializer) channelInitializer).acceptor.enableAutoReadTask(channel);
 			}

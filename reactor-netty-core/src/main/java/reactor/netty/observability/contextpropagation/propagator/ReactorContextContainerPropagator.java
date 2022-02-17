@@ -1,6 +1,7 @@
 package reactor.netty.observability.contextpropagation.propagator;
 
-import reactor.netty.observability.contextpropagation.ContextContainer;
+import io.micrometer.contextpropagation.ContextContainer;
+import io.micrometer.contextpropagation.ContextContainerPropagator;
 import reactor.util.context.Context;
 import reactor.util.context.ContextView;
 
@@ -14,7 +15,7 @@ public class ReactorContextContainerPropagator implements ContextContainerPropag
 
 	@Override
 	public ContextContainer get(ContextView container) {
-		return container.getOrDefault(key, null);
+		return container.getOrDefault(key, ContextContainer.NOOP);
 	}
 
 	@Override

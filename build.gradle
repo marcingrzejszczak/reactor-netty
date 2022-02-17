@@ -84,6 +84,7 @@ ext {
 	}
 
 	//Metrics
+	contextPropagationVersion = '1.0.0-SNAPSHOT' //optional baseline (TODO: This shouldn't be really optional)
 	micrometerVersion = '2.0.0-SNAPSHOT' //optional baseline
 	micrometerTracingVersion = '1.0.0-SNAPSHOT' //optional baseline
 	micrometerDocsVersion = '1.0.0-M1' //optional baseline

@@ -19,13 +19,12 @@ import java.net.SocketAddress;
 
 import io.micrometer.api.instrument.Tags;
 import io.micrometer.api.instrument.observation.Observation;
+import io.micrometer.contextpropagation.ContextContainer;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandler;
 import io.netty.handler.ssl.SslHandshakeCompletionEvent;
 import reactor.netty.channel.MicrometerChannelMetricsRecorder;
 import reactor.netty.observability.ReactorNettyHandlerContext;
-import reactor.netty.observability.contextpropagation.ContextContainer;
-import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 
 import static reactor.netty.Metrics.ERROR;
 import static reactor.netty.Metrics.SUCCESS;
@@ -66,9 +65,9 @@ final class MicrometerSslReadHandler extends Observation.Context implements Reac
 	@Override
 	@SuppressWarnings("try")
 	public void channelActive(ChannelHandlerContext ctx) {
-		ContextContainer container = ContainerUtils.restoreContainer(ctx.channel());
+		ContextContainer container = ContextContainer.restoreContainer(ctx.channel());
 		observation = Observation.createNotStarted(recorder.name() + TLS_HANDSHAKE_TIME, this, REGISTRY);
-		ContextContainer.tryScoped(container, () -> observation.start());
+		container.tryScoped(() -> observation.start());
 		ctx.read(); //consume handshake
 	}
 

@@ -15,6 +15,7 @@
  */
 package reactor.netty.observability.contextpropagation;
 
+import io.micrometer.contextpropagation.ContextContainer;
 import reactor.util.context.Context;
 import reactor.util.context.ContextView;
 

@@ -27,6 +27,7 @@ import io.micrometer.api.instrument.Metrics;
 import io.micrometer.api.instrument.observation.Observation;
 import io.micrometer.api.instrument.observation.ObservationHandler;
 import io.micrometer.api.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.contextpropagation.ContextContainer;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.test.SampleTestRunner;
 import io.micrometer.tracing.test.reporter.BuildingBlocks;
@@ -44,9 +45,7 @@ import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
 import reactor.netty.observability.ReactorNettyObservabilityUtils;
 import reactor.netty.observability.ReactorNettyTracingObservationHandler;
-import reactor.netty.observability.contextpropagation.ContextContainer;
 import reactor.netty.observability.contextpropagation.ReactorContextUtils;
-import reactor.netty.observability.contextpropagation.propagator.ContainerUtils;
 
 import static io.micrometer.tracing.test.simple.SpansAssert.then;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -136,7 +135,7 @@ class ObservabilitySmokeTest extends SampleTestRunner {
 								System.out.println("OBSERVATION not null " + Metrics.globalRegistry.getCurrentObservation());
 
 								// Manual
-								try (ContextContainer.Scope scope = ContainerUtils.restoreContainer(contextView).restoreThreadLocalValues()) {
+								try (ContextContainer.Scope scope = ContextContainer.restoreContainer(contextView).restoreThreadLocalValues()) {
 									System.out.println("OBSERVATION not null " + ContextContainer.create().captureThreadLocalValues().get(Observation.class.getName()));
 								}
 

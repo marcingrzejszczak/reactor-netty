@@ -17,7 +17,7 @@ package reactor.netty.observability.contextpropagation;
 
 import java.util.List;
 
-import io.micrometer.api.lang.Nullable;
+import io.micrometer.contextpropagation.ContextContainer;
 import reactor.util.context.Context;
 
 /**
@@ -25,7 +25,7 @@ import reactor.util.context.Context;
  * {@link ContextContainer} without introducing a dependency on Reactor in
  * {@link ContextContainer}.
  */
-public class ReactorContextUtils {
+public final class ReactorContextUtils {
 
 	private static final String ACCESSORS_KEY = "REACTOR";
 
@@ -36,7 +36,7 @@ public class ReactorContextUtils {
 	 */
 	public static ContextContainer create() {
 		ContextContainer container = ContextContainer.create();
-		container.setAccessors(ACCESSORS_KEY, AccessorLoader.getReactorContextAccessor());
+		container.setAccessors(ACCESSORS_KEY, ReactorAccessorLoader.getReactorContextAccessor());
 		return container;
 	}
 
@@ -53,8 +53,8 @@ public class ReactorContextUtils {
 	 * Restore Reactor context values previously saved in the given
 	 * {@link ContextContainer}.
 	 */
-	public static Context restoreReactorContext(Context context, @Nullable ContextContainer container) {
-		if (container == null) {
+	public static Context restoreReactorContext(Context context, ContextContainer container) {
+		if (container.isNoOp()) {
 			return context;
 		}
 		List<ReactorContextAccessor> accessors = container.getAccessors(ACCESSORS_KEY);
