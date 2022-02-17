@@ -43,7 +43,6 @@ import reactor.netty.DisposableServer;
 import reactor.netty.http.Http11SslContextSpec;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
-import reactor.netty.observability.ReactorNettyObservabilityUtils;
 import reactor.netty.observability.ReactorNettyTracingObservationHandler;
 
 import static io.micrometer.tracing.test.simple.SpansAssert.then;

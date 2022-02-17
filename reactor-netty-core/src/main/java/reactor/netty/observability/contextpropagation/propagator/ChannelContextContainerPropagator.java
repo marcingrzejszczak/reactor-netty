@@ -5,6 +5,7 @@ import io.micrometer.contextpropagation.ContextContainerPropagator;
 import io.netty.channel.Channel;
 import io.netty.util.AttributeKey;
 import reactor.netty.ReactorNetty;
+import reactor.util.context.ContextView;
 
 public class ChannelContextContainerPropagator implements ContextContainerPropagator<Channel, Channel> {
 
@@ -32,12 +33,13 @@ public class ChannelContextContainerPropagator implements ContextContainerPropag
 	}
 
 	@Override
-	public boolean supportsContextForSet(Object context) {
-		return context instanceof Channel;
+	public Class<?> getSupportedContextClassForSet() {
+		return Channel.class;
 	}
 
 	@Override
-	public boolean supportsContextForGet(Object context) {
-		return supportsContextForSet(context);
+	public Class<?> getSupportedContextClassForGet() {
+		return Channel.class;
 	}
+
 }
